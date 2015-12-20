@@ -41,6 +41,11 @@ examples to illustrate the point:
   metadata such as who determined the value, the date and what data it
   was based on.
 
+The approximate size of the raw data on HPSS is currently:
+```
+hawaii       356k Files, 4.71 TB
+hawaii_new   641k Files, 8.36 TB
+```
 
 ## 2. Pipeline definition
 
@@ -68,7 +73,7 @@ def task_stepname():
             'actions': ['command ...', ...]}
 ```
 
-Two equivalent workflow systems of note are
+Two DAG-based workflow systems of note are
 [FireWorks](http://pythonhosted.org/FireWorks/) and
 [Swift](http://swift-lang.org/). These are reportedly being officially
 supported at NERSC (see "pipeline backend" below).
@@ -101,19 +106,19 @@ steps might not actually need to be rerun - if the software used in
 the first step of the pipeline hasn't changed between `v1` and `v2`,
 the output of that step from `v1` can be reused in `v2`.
 
-**We may therefore wish to eventually develop a new
-software-version-aware workflow tool.**
+**We may therefore eventually wish to incorporate this feature into
+an existing workflow tool.**
 
-If we do decide to implement some custom tool, it may be
-that something like the doit DAG specification will be the most
-suitable, as it will be far easier to parse than a Makefile or a
-domain specific language (DSL) like Swift.
+If we do something like this, we should try to work with existing
+efforts and expertise so as not to re-invent the wheel. Also, we
+should first have a complete working pipeline in some existing
+workflow system. This will allow us to better understand our needs.
 
 
 ## 3. Pipeline backend
 
 Initially we will target running the pipeline at NERSC on the Cori
-machine, possibly interacting with the
+machine. Both the Edison and Cori machines use the
 [SLURM](http://slurm.schedmd.com/) scheduler.
 
 
