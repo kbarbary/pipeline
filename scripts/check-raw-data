@@ -1,0 +1,108 @@
+#!/bin/bash
+
+REMOTE_PREFIX=/sps/snovae/SRBregister/hawaii
+HPSS_PREFIX=/nersc/projects/snfactry/raw
+CACHEDIR=${SCRATCH}/snf-raw-data/cache
+
+if [[ $# -eq 0 || $1 == "-h" || $1 == "--help" ]]; then
+    echo "usage: check-raw-data YY"
+    echo "       check-raw-data YY DDD"
+    echo "       check-raw-data --detail YY"
+    echo "       check-raw-data --detail YY DDD"
+    echo ""
+    echo "  Check raw data for given year between CC and HPSS, optionally limiting to a single"
+    echo "  night. File names and sizes, but not checksums, are compared for consistency."
+    echo "  With the --detail flag, differences between CC and HPSS are printed for non-matching"
+    echo "  nights."
+    echo ""
+    echo "  The SNF_CC_USER and SNF_CC_SERVER environment variables must be set."
+    exit
+fi
+
+if [[ -z "$SNF_CC_USER" || -z "$SNF_CC_SERVER" ]]; then
+    echo "ERROR: must set SNF_CC_USER and SNF_CC_SERVER environment variables"
+    exit
+fi
+
+detail=0
+if [[ $1 == "--detail" ]]; then
+    detail=1
+    year=$2
+    nights=$3
+else
+    year=$1
+    nights=$2
+fi
+
+remotefile=${CACHEDIR}/${year}-remote.txt
+
+# Create cache directory if it doesn't exist.
+mkdir -p -v $CACHEDIR
+
+# Get directory tree for entire YEAR on remote, if we don't already have it.
+if [ ! -e $remotefile ]
+then
+    echo "Getting contents of ${SNF_CC_SERVER}:${REMOTE_PREFIX}/${year}..."
+    ssh ${SNF_CC_USER}@${SNF_CC_SERVER} "cd ${REMOTE_PREFIX}/${year}; find . -type f -printf '%P %s\n' | sort" > $remotefile
+fi
+
+# Get nights on remote for this year. Nights are like '099'.
+if [[ $nights == "" ]]; then
+    nights=$(awk '{split($1, a, "/"); print a[1]}' $remotefile | uniq)
+fi
+
+# loop over nights
+for night in $nights; do
+
+    nightremotefile=${CACHEDIR}/${year}-${night}-remote.txt
+    nighthpssfile=${CACHEDIR}/${year}-${night}-hpss.txt
+
+    # get lines in remote file for this night
+    grep "^${night}\/" $remotefile > $nightremotefile
+
+    printf "comparing ${year}/${night}..."
+
+    # Use htar to get a directory listing for the night, with file sizes.
+    # Pipe output to awk to remove directory entries and the special HTAR
+    # file starting with '/global/cscratch/'
+    if [ ! -e $nighthpssfile ]; then
+	htar -tf ${HPSS_PREFIX}/${year}/${night}.tar 2>&1 | awk '{if ((index($2, "d") == 0) && (index($7, "/global/cscratch1/") == 0) && (NF == 7)) {print $7, $4}}' | sort > $nighthpssfile
+    fi
+
+    # number of files the same, unique on remote, unique on hpss
+    nsame=$(comm -12 $nightremotefile $nighthpssfile | wc -l)
+    nremote=$(comm -23 $nightremotefile $nighthpssfile | wc -l)
+    nhpss=$(comm -13 $nightremotefile $nighthpssfile | wc -l)
+
+    # print summary of differences
+    if [ $nremote -eq 0 ]
+    then
+	printf " $(tput setaf 2)$(tput bold)OK      $(tput sgr0)"
+    else
+	printf " $(tput setaf 1)$(tput bold)MISSING $(tput sgr0)"
+    fi
+    if [ $nsame -ne 0 ]; then
+	printf " same: %4d" $nsame
+    else
+	printf "           "
+    fi
+    if [ $nremote -ne 0 ]; then
+	printf " unique_remote: %4d" $nremote
+    else
+	printf "                    "
+    fi
+    if [ $nhpss -ne 0 ]; then
+	printf " unique_hpss: %4d\n" $nhpss
+    else
+	printf "                  \n"
+    fi
+
+    # print detail if requested
+    if [[ $detail -eq 1 && ! ( $nremote -eq 0 && $nremote -eq 0 ) ]]; then
+	echo "$(tput setaf 4)$(tput bold)remote$(tput sgr0)"
+	echo "$(tput setaf 4)$(tput bold)        hpss$(tput sgr0)"
+	comm -3 $nightremotefile $nighthpssfile
+    fi
+
+done
+
