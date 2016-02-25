@@ -1,0 +1,21 @@
+#!/bin/bash
+
+MKWC_ROOT_URL=http://mkwc.ifa.hawaii.edu/archive/wx/cfht
+WEATHER_DIR=/project/projectdirs/snfactry/raw/weather
+IAUC_DIR=/project/projectdirs/snfactry/raw/iauc
+
+
+# sync weather data from Mauna Kea Weather Center
+cd $WEATHER_DIR
+currentyear=$(date +"%Y")
+for year in $(seq 2004 ${currentyear}); do
+    wget --timestamping ${MKWC_ROOT_URL}/cfht-wx.${year}.dat
+done
+wget --timestamping ${MKWC_ROOT_URL}/format.txt
+
+# sync IAU circular SNe page
+# Note: this page doesn't have a last-modified value in header, so
+# --timestamping option to wget doesn't do anything. Page is fetched each
+# time regardless.
+cd $IAUC_DIR
+wget http://www.cbat.eps.harvard.edu/lists/Supernovae.html
