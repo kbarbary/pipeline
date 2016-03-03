@@ -21,7 +21,7 @@ Raw Data
   http://www.cbat.eps.harvard.edu/lists/Supernovae.html is synced to
   `/project/projectdirs/snfactry/raw/iauc`.
 
-![Pipeline dataflow](docs/pipeline.svg)
+![pipeline dataflow](https://cdn.rawgit.com/snfactory/pipeline/master/docs/pipeline.svg)
 
 Scripts
 -------
