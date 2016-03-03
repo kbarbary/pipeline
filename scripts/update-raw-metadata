@@ -4,18 +4,52 @@ MKWC_ROOT_URL=http://mkwc.ifa.hawaii.edu/archive/wx/cfht
 WEATHER_DIR=/project/projectdirs/snfactry/raw/weather
 IAUC_DIR=/project/projectdirs/snfactry/raw/iauc
 
+# checked_download: If local file already exists, make a backup of
+# file, download file, then check if new file is a strict superset of
+# the old file (in terms of lines).
+function checked_download {
+    localfile=$(basename $1)
+    [ -e $localfile ] && cp $localfile ${localfile}.bak
+    wget --timestamping $1
+    if [[ $? -ne 0 ]]; then
+	echo "$(tput setaf 1)$(tput bold)ERROR$(tput sgr0) downloading $1"
+	exit 1
+    fi
+    if [ -e ${localfile}.bak ]; then
+
+	# number of lines in backup that are *not* in new file
+	uniqueoldlines=$(comm -23 ${localfile}.bak $localfile | wc -l)
+
+	# if there are any old lines that would be overwritten, restore
+	# old file and error out.
+	if [[ $uniqueoldlines -ne 0 ]]; then
+	    mv $localfile ${localfile}.new
+	    mv ${localfile}.bak $localfile
+	    echo "$(tput setaf 1)$(tput bold)ERROR$(tput sgr0) downloading $1"
+	    echo "      Some lines in existing file are missing from new file. New file saved as"
+	    echo "      $(pwd)/${localfile}.new"
+	    exit 1
+	else
+	    rm ${localfile}.bak
+	fi
+    fi
+    return 0
+}
+
 
 # sync weather data from Mauna Kea Weather Center
 cd $WEATHER_DIR
 currentyear=$(date +"%Y")
 for year in $(seq 2004 ${currentyear}); do
-    wget --timestamping ${MKWC_ROOT_URL}/cfht-wx.${year}.dat
+    checked_download ${MKWC_ROOT_URL}/cfht-wx.${year}.dat
 done
-wget --timestamping ${MKWC_ROOT_URL}/format.txt
+
+# weather data file format
+checked_download ${MKWC_ROOT_URL}/format.txt
 
 # sync IAU circular SNe page
 # Note: this page doesn't have a last-modified value in header, so
 # --timestamping option to wget doesn't do anything. Page is fetched each
 # time regardless.
 cd $IAUC_DIR
-wget http://www.cbat.eps.harvard.edu/lists/Supernovae.html
+checked_download http://www.cbat.eps.harvard.edu/lists/Supernovae.html
