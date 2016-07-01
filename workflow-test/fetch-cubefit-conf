@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#
+# Fetch all cubefit config files using rsync.
+
+TAG1=02-03
+TAG2=0203-CABALLO
+PROCESSING_DIR=/project/projectdirs/snfactry/processing
+
+if [[ -z "$SNF_CC_USER" || -z "$SNF_CC_SERVER" ]]; then
+    echo "ERROR: must set SNF_CC_USER and SNF_CC_SERVER environment variables"
+    exit 1
+fi
+
+# Note: arguments need quotes to avoid being expanded by shell
+# Note: The order of the --include and --exclude args is significant!
+rsync -vzrmt --include='*/' --include="*/SNF-${TAG2}_?b-*_config.json" --exclude='*' ${SNF_CC_USER}@${SNF_CC_SERVER}:/sps/snovae/user/snprod/snprod/jobs/SNF-${TAG1}/MoreFlux/CUBEFIT/PCF/ ${PROCESSING_DIR}/${TAG2}/cubefit-config-orig

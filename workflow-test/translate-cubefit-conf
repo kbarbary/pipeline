@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+#
+# Translate cubefit config files for local use.
+# (Make 'filenames' attribute into the local filenames.)
+
+from __future__ import print_function
+
+import glob
+import json
+import os
+
+PROCESSING_DIR = '/project/projectdirs/snfactry/processing'
+TAG = '0203-CABALLO'
+SHORT_TAG = '02-03'
+
+orig_dir = os.path.join(PROCESSING_DIR, TAG, 'cubefit-config-orig')
+local_dir = os.path.join(PROCESSING_DIR, TAG, 'cubefit-config')
+
+cc_prefix = '/sps/snovae/SRBregister/Prod/' + SHORT_TAG
+local_prefix = os.path.join(PROCESSING_DIR, TAG, 'cubes-cal-corr')
+
+for name in os.listdir(orig_dir):
+
+    # ensure that target directory for config files exists
+    dirname = os.path.join(local_dir, name)
+    if not os.path.exists(dirname):
+        os.mkdir(dirname)
+
+    for band in ['B', 'R']:
+
+        # Get filename (this is overly complicated because the SN name in the
+        # file name has a different format than in `names`.
+        fnames = glob.glob(orig_dir + "/{}/SNF-{}_{}b-*_config.json"
+                           .format(name, TAG, band))
+        if len(fnames) == 0:
+            continue
+
+        if len(fnames) != 1:
+            raise RuntimeError("Found {:d} config files for {} band {}. "
+                               "Expected zero or one."
+                               .format(len(fnames), name, band))
+        fname = fnames[0]
+
+        # read it
+        with open(fname) as f:
+            contents = json.load(f)
+            
+        # The CC filenames are in the 'filepaths' attribute, but we
+        # want to put the local filenames in to the 'filenames' attribute.
+        # (this is the attribute that cubefit reads)
+        # We leave 'filepaths' alone and just ignore it.
+        contents['filenames'] = [p.replace(cc_prefix, local_prefix)
+                                 for p in contents['filepaths']]
+        
+        # write config file to new location.
+        outfname = os.path.join(local_dir, name,
+                                '{}_{}.json'.format(name, band))
+        print("writing", outfname)
+        with open(outfname, 'w') as f:
+            json.dump(contents, f, indent=True)

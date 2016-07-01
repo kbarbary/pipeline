@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#
+# Fetch all telluric-corrected, flux-calibrated cubes for a given processing
+# run (fclass=023, xfclass=012)
+
+TAG1=02-03
+TAG2=0203-CABALLO
+PROCESSING_DIR=/project/projectdirs/snfactry/processing
+INDEX=000  # reprocessing index
+
+if [[ -z "$SNF_CC_USER" || -z "$SNF_CC_SERVER" ]]; then
+    echo "ERROR: must set SNF_CC_USER and SNF_CC_SERVER environment variables"
+    exit 1
+fi
+
+# Note: arguments need quotes to avoid being expanded by shell
+# Note: The order of the --include and --exclude args is significant!
+rsync -vzrmt --include='*/' --include="*/*/??_???_???_???_?_023_012_${TAG1}_${INDEX}.fits" --exclude='*' ${SNF_CC_USER}@${SNF_CC_SERVER}:/sps/snovae/SRBregister/Prod/${TAG1}/ ${PROCESSING_DIR}/${TAG2}/cubes-cal-corr
