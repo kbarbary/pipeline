@@ -1,0 +1,91 @@
+#!/bin/bash
+
+PROJECT_IMAGES_PREFIX=/project/projectdirs/snfactry/raw/images
+PROJECT_LOGS_PREFIX=/project/projectdirs/snfactry/raw/logs
+
+HPSS_IMAGES_PREFIX=/nersc/projects/snfactry/raw/images
+HPSS_LOGS_PREFIX=/nersc/projects/snfactry/raw/logs
+
+if [[ $# -ne 2 || $1 == "-h" || $1 == "--help" || $2 == "-h" || $2 == "--help" ]]; then
+    echo "usage: archive-raw-data <year> <nightpattern>"
+    echo ""
+    echo "  Archive data using htar from /project to HPSS."
+    echo "  <nightpattern> can be a single night, such as 016, or a shell "
+    echo "  pattern such as \"01*\" (be sure to use quotes to avoid shell "
+    echo "  expansion)."
+    exit
+fi
+
+if [[ -z "$SNF_CC_USER" || -z "$SNF_CC_SERVER" ]]; then
+    echo "ERROR: must set SNF_CC_USER and SNF_CC_SERVER environment variables"
+    exit
+fi
+
+
+year=$1
+nightpattern=$2
+
+# get array of nights that match the pattern
+cd ${PROJECT_IMAGES_PREFIX}/${year}
+nights=$(ls -d ${nightpattern})
+
+# get array of nights already on HPSS
+have_image_nights=$(hsi -q "ls -1 ${HPSS_IMAGES_PREFIX}/${year}/*.tar" 2>&1 | awk '{n=split($1, a, "/"); split(a[n], b, "."); print b[1]}')  
+
+# we need to explicitly check for when there are no nights because hsi outputs
+# a warning that starts with "*** Warning: No matching names ..."
+if [[ "${have_image_nights}" == "***" ]]; then
+    have_image_nights=
+fi
+
+
+have_log_nights=$(hsi -q "ls -1 ${HPSS_LOGS_PREFIX}/${year}/*.tar" 2>&1 | awk '{n=split($1, a, "/"); split(a[n], b, "."); print b[1]}')
+
+# see above
+if [[ "${have_log_nights}" == "***" ]]; then
+    have_log_nights=
+fi
+
+# for each night, run htar, but *only* if tar file doesn't already exist.
+for night in $nights; do
+
+    # make sure that corresponding log directory exists on /project before
+    # doing anything.
+    if [[ ! -d ${PROJECT_LOGS_PREFIX}/${year}/${night} ]]; then
+	echo "Log directory doesn't exist for night: ${night}"
+	exit 1
+    fi
+
+    # check if we have either the images or the logs on hpss already
+    haveim=0
+    for hn in $have_image_nights; do
+	if [[ $hn == $night ]]; then
+	    haveim=1
+	fi
+    done
+    havelog=0
+    for hn in $have_log_nights; do
+	if [[ $hn == $night ]]; then
+	    havelog=1
+	fi
+    done
+
+    # if we do have it, fail
+    if [[ $haveim -eq 1 ]]; then
+	echo "Night images or logs already exist on HPSS: ${night}"
+	#exit 1
+    #fi
+    else
+	cd ${PROJECT_IMAGES_PREFIX}/${year}
+	htar -Hcrc -cvf ${HPSS_IMAGES_PREFIX}/${year}/${night}.tar ${night}
+    fi
+
+    if [[ $havelog -eq 1 ]]; then
+	echo "Night logs already exist on HPSS: ${night}"
+	exit 1
+    fi
+
+    cd ${PROJECT_LOGS_PREFIX}/${year}
+    htar -Hcrc -cvf ${HPSS_LOGS_PREFIX}/${year}/${night}.tar ${night}
+
+done

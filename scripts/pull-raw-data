@@ -1,18 +1,20 @@
 #!/bin/bash
 
-REMOTE_PREFIX=/sps/snovae/SRBregister/hawaii
-HPSS_PREFIX=/nersc/projects/snfactry/raw
-WORKDIR=${SCRATCH}/snf-raw-data
+REMOTE_IMAGES_PREFIX=/sps/snovae/SRBregister/hawaii
+REMOTE_LOGS_PREFIX=/sps/snovae/SRBregister/log
+
+PROJECT_IMAGES_PREFIX=/project/projectdirs/snfactry/raw/images
+PROJECT_LOGS_PREFIX=/project/projectdirs/snfactry/raw/logs
 
 function joinstrings { local IFS="$1"; shift; echo "$*"; }
 
 if [[ $# -ne 2 || $1 == "-h" || $1 == "--help" || $2 == "-h" || $2 == "--help" ]]; then
     echo "usage: pull-raw-data <year> <nightpattern>"
     echo ""
-    echo "  Pull raw data from CC and htar onto HPSS. <nightpattern> can be a single night,"
-    echo "  such as 016, or a shell pattern such as \"01*\" (be sure to use quotes). The pattern"
-    echo "  is passed to ls on the remote end. Any night that already exists on HPSS is not"
-    echo "  pulled, regardless of its content. So, to re-pull a night, delete the HPSS tar file."
+    echo "  Pull raw data from CC to /project."
+    echo "  <nightpattern> can be a single night, such as 016, or a shell "
+    echo "  pattern such as \"01*\" (be sure to use quotes to avoid shell "
+    echo "  expansion: the pattern is passed to rsync)."
     exit
 fi
 
@@ -25,50 +27,18 @@ fi
 year=$1
 nightpattern=$2
 
-echo "Getting nights on remote..."
-nights=$(ssh ${SNF_CC_USER}@${SNF_CC_SERVER} "cd ${REMOTE_PREFIX}/${year}; ls -d ${nightpattern}")
+# pull logs
+(set -x; rsync -rtvz ${SNF_CC_USER}@${SNF_CC_SERVER}:${REMOTE_LOGS_PREFIX}/${year}/${nightpattern} ${PROJECT_LOGS_PREFIX}/${year})
 
 if [[ $? -ne 0 ]]; then
-    echo "ERROR: ssh error" >&2
+    echo "ERROR: rsync error" >&2
     exit 1
 fi     
 
-# get nights already on HPSS (we'll skip these)
-havenights=$(hsi -q "ls -1 ${HPSS_PREFIX}/${year}/*.tar" 2>&1 | awk '{n=split($1, a, "/"); split(a[n], b, "."); print b[1]}')
+# pull images
+(set -x; rsync -rtvz ${SNF_CC_USER}@${SNF_CC_SERVER}:${REMOTE_IMAGES_PREFIX}/${year}/${nightpattern} ${PROJECT_IMAGES_PREFIX}/${year})
 
-# construct array of nights that we don't have.
-getnights=()
-for n in $nights; do
-    have=0
-    for hn in $havenights; do
-	if [[ $hn == $n ]]; then
-	    have=1
-	fi
-    done
-    if [[ $have -eq 0 ]]; then
-	getnights+=($n)
-    fi
-done
-
-# if there are no nights we don't have, exit
-if [[ ${#getnights[@]} -eq 0 ]]; then
-    echo "Already have all nights: $(joinstrings , ${nights})"
-    exit
-fi
-
-mkdir -p ${WORKDIR}/${year}
-cd ${WORKDIR}/${year}
-
-src=${REMOTE_PREFIX}/${year}/{$(joinstrings , ${getnights[@]})}
-(set -x; rsync -rtvz ${SNF_CC_USER}@${SNF_CC_SERVER}:$src ${WORKDIR}/${year})
-
-# check if there was a problem
 if [[ $? -ne 0 ]]; then
     echo "ERROR: rsync error" >&2
     exit 1
 fi
-
-# htar all nights that we brought over
-for night in ${getnights[@]}; do
-    htar -Hcrc -cvf ${HPSS_PREFIX}/${year}/${night}.tar ${night}
-done
