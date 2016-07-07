@@ -1,0 +1,61 @@
+#!/bin/bash
+
+PROJECT_LOGS_PREFIX=/project/projectdirs/snfactry/raw/logs
+HPSS_LOGS_PREFIX=/nersc/projects/snfactry/raw/logs
+WORK_DIR=${SCRATCH}/archive-raw-data
+
+if [[ $# -ne 1 || $1 == "-h" || $1 == "--help" ]]; then
+    echo "usage: archive-raw-logs <year>"
+    echo ""
+    echo "  Archive logs using htar from /project to HPSS."
+    exit
+fi
+
+year=$1
+
+cd ${PROJECT_LOGS_PREFIX}
+
+# check if htar file for the year exists.
+have=$(hsi -q "find ${HPSS_LOGS_PREFIX} -name ${year}.tar" 2>&1 | wc -l)
+
+# if we have it, do some checks, as above
+if [ $have -eq 1 ]; then
+    mkdir -p -v $WORK_DIR  # temp. directory for text files
+    hpss_listing=${WORK_DIR}/${year}-log-hpss.txt
+    project_listing=${WORK_DIR}/${year}-log-project.txt
+
+    # Use htar to get a directory listing for the year, with file sizes.
+    # Pipe output to awk to remove directory entries and the special HTAR
+    # file starting with 'HTAR_CF_CHK_...'
+    htar -tf ${HPSS_LOGS_PREFIX}/${year}.tar 2>&1 | awk '{if ((index($2, "d") == 0) && (index($7, "HTAR_CF_CHK") == 0) && (NF == 7)) {print $7, $4}}' | sort > $hpss_listing
+
+    # Use find to get a directory listing on project
+    find ${year} -type f -printf '%p %s\n' | sort > $project_listing
+
+    # number of files unique on project and unique on HPSS:
+    nsame=$(comm -12 $project_listing $hpss_listing | wc -l)
+    nproject=$(comm -23 $project_listing $hpss_listing | wc -l)
+    nhpss=$(comm -13 $project_listing $hpss_listing | wc -l)
+
+    # print info on comparison
+    printf "${year}.tar exists. same: %4d unique_project: %4d unique_hpss: %4d\n" $nsame $nproject $nhpss
+
+    # if there are unique files on HPSS, abort so we don't overwrite them.
+    if [ $nhpss -ne 0 ]; then
+	echo "$(tput setaf 1)$(tput bold)ABORTING due to extra files on HPSS$(tput sgr0)"
+	echo "file listings are in ${hpss_listing} and ${project_listing}."
+	exit 1
+
+    # if there only unique files on project, we are OK to overwrite
+    elif [ $nproject -ne 0 ]; then
+	echo " $(tput setaf 2)$(tput bold)Some unique files on /project. Re-taring...$(tput sgr0)"
+
+    # otherwise, htar contents and project are the same
+    else
+	echo " $(tput setaf 2)$(tput bold)htar file contents up-to-date$(tput sgr0)"
+	exit 0
+    fi
+fi
+
+# If we got this far, we are good to run htar
+htar -Hcrc -cvf ${HPSS_LOGS_PREFIX}/${year}.tar ${year}

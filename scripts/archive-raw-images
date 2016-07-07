@@ -1,0 +1,90 @@
+#!/bin/bash
+
+PROJECT_IMAGES_PREFIX=/project/projectdirs/snfactry/raw/images
+HPSS_IMAGES_PREFIX=/nersc/projects/snfactry/raw/images
+WORK_DIR=${SCRATCH}/archive-raw-data
+
+if [[ $# -ne 2 || $1 == "-h" || $1 == "--help" || $2 == "-h" || $2 == "--help" ]]; then
+    echo "usage: archive-raw-images <year> <nightpattern>"
+    echo ""
+    echo "  Archive data using htar from /project to HPSS."
+    echo "  <nightpattern> can be a single night, such as 016, or a shell "
+    echo "  pattern such as \"01*\" (be sure to use quotes to avoid shell "
+    echo "  expansion)."
+    exit
+fi
+
+year=$1
+nightpattern=$2
+
+# get array of nights that match the pattern
+cd ${PROJECT_IMAGES_PREFIX}/${year}
+nights=$(ls -d ${nightpattern})
+
+# get array of nights already on HPSS
+have_nights=$(hsi -q "ls -1 ${HPSS_IMAGES_PREFIX}/${year}/*.tar" 2>&1 | awk '{n=split($1, a, "/"); split(a[n], b, "."); print b[1]}')  
+
+# we need to explicitly check for when there are no nights on HPSS
+# because hsi outputs a warning that starts with "*** Warning: No
+# matching names ...", which is super annoying.
+if [[ "${have_nights}" == "***" ]]; then
+    have_nights=
+fi
+
+# loop over nights 
+for night in $nights; do
+
+    # check if we already have a tar file on HPSS for this night
+    have=0
+    for hn in $have_nights; do
+	if [[ $hn == $night ]]; then
+	    have=1
+	fi
+    done
+
+    # if we DO have it, check that its contents is a strict subset of what
+    # is on /project.
+    if [[ $have -eq 1 ]]; then
+	makedir -p -v $WORK_DIR  # temp. directory for text files
+	hpss_listing=${WORK_DIR}/${year}-${night}-hpss.txt
+	project_listing=${WORK_DIR}/${year}-${night}-project.txt
+
+        # Use htar to get a directory listing for the night, with file sizes.
+        # Pipe output to awk to remove directory entries and the special HTAR
+        # file starting with 'HTAR_CF_CHK_...'
+	htar -tf ${HPSS_IMAGES_PREFIX}/${year}/${night}.tar 2>&1 | awk '{if ((index($2, "d") == 0) && (index($7, "HTAR_CF_CHK") == 0) && (NF == 7)) {print $7, $4}}' | sort > $hpss_listing
+
+	# Use find to get a directory listing on project
+	find ${night} -type f -printf '%p %s\n' | sort > $project_listing
+
+	# number of files unique on project and unique on HPSS:
+	nsame=$(comm -12 $project_listing $hpss_listing | wc -l)
+	nproject=$(comm -23 $project_listing $hpss_listing | wc -l)
+	nhpss=$(comm -13 $project_listing $hpss_listing | wc -l)
+
+	# print info on comparison
+	printf "${year}/${night}.tar exists. same: %4d unique_project: %4d unique_hpss: %4d\n" $nsame $nproject $nhpss
+
+	# if there are unique files on HPSS, abort so we don't overwrite them.
+	if [ $nhpss -ne 0 ]; then
+	    echo "$(tput setaf 1)$(tput bold)ABORTING due to extra files on HPSS$(tput sgr0)"
+	    echo "file listings are in ${hpss_listing} and ${project_listing}."
+	    exit 1
+
+
+	# if there only unique files on project, we are OK to overwrite
+	elif [ $nproject -ne 0 ]; then
+	    echo " $(tput setaf 2)$(tput bold)Some unique files on /project. Re-taring...$(tput sgr0)"
+
+	# otherwise, htar contents and project are the same and we can skip this
+	# night.
+	else
+	    echo " $(tput setaf 2)$(tput bold)htar file contents up-to-date$(tput sgr0)"
+	    continue
+	fi
+    fi
+
+    # If we got this far, we either don't have it on HPSS at all, or we're
+    # OK to overwrite it.
+    htar -Hcrc -cvf ${HPSS_IMAGES_PREFIX}/${year}/${night}.tar ${night}
+done
