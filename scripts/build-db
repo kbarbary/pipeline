@@ -35,9 +35,11 @@ print(len(fnames), "files.")
 print("Reading FITS headers...")
 for fname in tqdm(fnames):
     hdr = fitsio.read_header(fname, 0)
-    cur.execute("INSERT OR IGNORE into rawimages values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (fname, hdr['RUNID'], hdr['OBSID'], hdr['EXPTIME'], hdr['DARKTIME'],
-                 hdr['AIRMASS'], hdr['PI_NAME'], hdr['OBSERVER'], hdr['CHANNEL']))
+    cur.execute("INSERT OR IGNORE into rawimages "
+                "values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (fname, hdr['RUNID'], hdr['OBSID'], hdr['EXPTIME'],
+                 hdr['DARKTIME'], hdr['AIRMASS'], hdr['PI_NAME'],
+                 hdr['OBSERVER'], hdr['CHANNEL']))
 
 # flush changes
 conn.commit()
