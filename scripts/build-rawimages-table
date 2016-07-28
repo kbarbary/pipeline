@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+
+import glob
+import os
+import sqlite3
+
+import fitsio
+from tqdm import tqdm
+
+DBNAME = os.path.join(os.getcwd(), "images.db")
+IMAGE_ROOT = "/project/projectdirs/snfactry/raw/images"
+IMAGE_PATHNAME = "08/**/*.fits"
+
+conn = sqlite3.connect(DBNAME)  # open or create DB
+cur = conn.cursor()
+
+# Check whether rawimage table exists
+cur.execute("SELECT tbl_name from sqlite_master where type='table'")
+table_names = [t[0] for t in cur.fetchall()]
+
+# Create table if it doesn't exist
+if "rawimages" not in table_names:
+    print("Creating rawimages table...")
+    cur.execute("CREATE TABLE rawimages (filepath text UNIQUE PRIMARY KEY, "
+                "runid text, obsid text, exptime real, darktime real, "
+                "airmass real, pi_name text, observer text, channel text)")
+
+# find all FITS files
+print("finding files...")
+os.chdir(IMAGE_ROOT)
+fnames = glob.glob(IMAGE_PATHNAME, recursive=True)
+print(len(fnames), "files.")
+
+
+print("Reading FITS headers...")
+for fname in tqdm(fnames):
+    hdr = fitsio.read_header(fname, 0)
+    cur.execute("INSERT OR IGNORE into rawimages "
+                "values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (fname, hdr['RUNID'], hdr['OBSID'], hdr['EXPTIME'],
+                 hdr['DARKTIME'], hdr['AIRMASS'], hdr['PI_NAME'],
+                 hdr['OBSERVER'], hdr['CHANNEL']))
+
+# flush changes
+conn.commit()
+conn.close()
+
