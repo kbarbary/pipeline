@@ -6,5 +6,10 @@ import snfpipe
 
 
 IAUC_FNAME = "/project/projectdirs/snfactry/raw/iauc/Supernovae.html"
+SNF_TARGETS_FNAME = "/project/projectdirs/snfactry/raw/targets/snifs_target.list"
 
 iauc_targets = snfpipe.read_iauc_targets(IAUC_FNAME)
+snf_targets = snfpipe.read_snf_targets(SNF_TARGETS_FNAME)
+
+print(len(snf_targets))
+print(snf_targets[0])
