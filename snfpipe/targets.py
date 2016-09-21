@@ -4,7 +4,7 @@
 import re
 import string
 
-from ._utils import RADec, utc_to_jd
+from .utils import RADec, utc_to_jd
 
 __all__ = ["IAUCTarget", "SNFTarget", "read_iauc_targets", "read_snf_targets"]
 
