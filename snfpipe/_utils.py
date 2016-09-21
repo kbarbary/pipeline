@@ -1,3 +1,5 @@
+# Various legacy utilities from SNFactory cvs Tasks/Processing/database/SnfObj
+
 from math import pi, sin, cos, acos
     
 class RADec(object):
@@ -142,6 +144,7 @@ def AngDist(r,d,r1,d1):
 
     return result
 
+
 def AngDistD(r0, d0, r01, d01):
     "Angular distance between 2 directions ra,dec , ra1,dec1 given in Degree"
     r = r0 * pi / 180.
@@ -150,3 +153,60 @@ def AngDistD(r0, d0, r01, d01):
     d1 = d01 * pi / 180.
 
     return AngDist(r, d, r1, d1) * 180. / pi
+
+
+def utc_to_jd(time):
+    """Transform a UTC time string to Julian date.
+
+    example inputs:
+    - result of `date --utc`: "Wed Sep 28 08:47:17 UTC 2005"
+    - B channel header: "2005-02-23T15:40:3"
+    """
+
+    # the UTC parsing has a problem : I have some time 2 space between
+    # month and day
+    # split generate a none string with it ... python should have
+    # a nicer way arround this problem than what I did here  ....
+    #exp=string.split(string.strip(time)," ")
+
+    # which kind of format?
+    buff = time.strip().split(" ", 1)
+
+    if len(buff) > 1:
+        # this is a Wed Sep 28 08:47:17 UTC 200 kind of string
+        exp = []
+        while len(buff) > 1:
+            exp.append(buff[0])
+            buff = buff[1].strip().split(" ",1)
+        exp.append(buff[0])
+
+        if exp[4] != "UTC" :
+            raise ValueError("we only handle UTC and not " + exp[4])
+
+        month = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                 'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec':12}
+        hour = exp[3].split(":")
+        dd = int(exp[2])
+        mm = int(month[exp[1]])
+        yyyy = int(exp[5])
+    else:
+        # this is a 2005-02-23T15:40:3 kind of time string
+        buff = time.strip().split("T", 1)
+        exp = buff[0].split("-")
+        hour = buff[1].split(":")
+        yyyy = int(exp[0])
+        dd = int(exp[2])
+        mm = int(exp[1])
+
+    hh = float(hour[0])
+    min = float(hour[1])
+    sec = float(hour[2])
+    ut = hh + min / 60 + sec / 3600
+
+    if (100 * yyyy + mm - 190002.5) > 0:
+        sig = 1
+    else:
+        sig = -1
+
+    return (367 * yyyy - int(7 * (yyyy + int((mm + 9) / 12)) / 4) +
+            int(275 * mm / 9) + dd + 1721013.5 + ut / 24 - 0.5 * sig + 0.5)
