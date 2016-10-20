@@ -559,7 +559,7 @@ def read_run_line(line):
             target_re = '-o (.*?)(?: -[a-z].*)?$'
             kind_re = '-k (.*?)(?: -[a-z] .*)?$'
         else:
-            raise RuntimeError("unknown script type")
+            raise ValueError("unknown script type")
 
 
         try:
