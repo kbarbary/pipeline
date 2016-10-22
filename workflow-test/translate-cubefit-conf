@@ -11,35 +11,46 @@ import os
 
 PROCESSING_DIR = '/project/projectdirs/snfactry/processing'
 TAG = '0203-CABALLO'
-SHORT_TAG = '02-03'
+ORIG_DIR = os.path.join(PROCESSING_DIR, TAG, 'cubefit-config-orig')
+TARGET_DIR = os.path.join(PROCESSING_DIR, TAG, 'cubefit-config')
+CC_PREFIX = '/sps/snovae/SRBregister/Prod/02-03/'
 
-orig_dir = os.path.join(PROCESSING_DIR, TAG, 'cubefit-config-orig')
-local_dir = os.path.join(PROCESSING_DIR, TAG, 'cubefit-config')
 
-cc_prefix = '/sps/snovae/SRBregister/Prod/' + SHORT_TAG
-local_prefix = os.path.join(PROCESSING_DIR, TAG, 'cubes-cal-corr')
+def raw_cubefit_config_filename(dirname, band, tag):
+    """Get filename of exactly one raw cubefit config file in the
+    given directory and in the given band.
 
-for name in os.listdir(orig_dir):
+    This is more than just a string format because the SN name in the file
+    name has a different format than the input name. This could be simplified
+    to a string formatting operation with a lookup between names. However,
+    if we were building the pipeline for real, we wouldn't have these sort
+    of name mis-matches.
+    """
+
+    pattern = "{}/SNF-{}_{}b-*_config.json".format(dirname, tag, band)
+    fnames = glob.glob(pattern)
+    
+    if len(fnames) == 0:
+        return None
+    elif len(fnames) == 1:
+        return fnames[0]
+    else:
+        raise Exception("Found multiple config file matching {}"
+                        .format(pattern))
+
+
+for name in os.listdir(ORIG_DIR):
 
     # ensure that target directory for config files exists
-    dirname = os.path.join(local_dir, name)
+    dirname = os.path.join(TARGET_DIR, name)
     if not os.path.exists(dirname):
         os.mkdir(dirname)
 
     for band in ['B', 'R']:
-
-        # Get filename (this is overly complicated because the SN name in the
-        # file name has a different format than in `names`.
-        fnames = glob.glob(orig_dir + "/{}/SNF-{}_{}b-*_config.json"
-                           .format(name, TAG, band))
-        if len(fnames) == 0:
+        dirname = os.path.join(ORIG_DIR, name)
+        fname = raw_cubefit_config_filename(dirname, band, TAG)
+        if fname is None:
             continue
-
-        if len(fnames) != 1:
-            raise RuntimeError("Found {:d} config files for {} band {}. "
-                               "Expected zero or one."
-                               .format(len(fnames), name, band))
-        fname = fnames[0]
 
         # read it
         with open(fname) as f:
@@ -49,11 +60,11 @@ for name in os.listdir(orig_dir):
         # want to put the local filenames in to the 'filenames' attribute.
         # (this is the attribute that cubefit reads)
         # We leave 'filepaths' alone and just ignore it.
-        contents['filenames'] = [p.replace(cc_prefix, local_prefix)
+        contents['filenames'] = [p.replace(CC_PREFIX, '')
                                  for p in contents['filepaths']]
         
         # write config file to new location.
-        outfname = os.path.join(local_dir, name,
+        outfname = os.path.join(TARGET_DIR, name,
                                 '{}_{}.json'.format(name, band))
         print("writing", outfname)
         with open(outfname, 'w') as f:
