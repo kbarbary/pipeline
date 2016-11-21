@@ -1,12 +1,14 @@
 
 """Parsing the HTML page for IAUC supernovae."""
 
+import os
 import re
 import string
 
 from .utils import RADec, utc_to_jd
 
-__all__ = ["IAUCTarget", "SNFTarget", "read_iauc_targets", "read_snf_targets"]
+__all__ = ["IAUCTarget", "SNFTarget", "read_iauc_targets", "read_snf_targets",
+           "read_run_logfile"]
 
 
 class IAUCTarget(object):
@@ -390,14 +392,14 @@ class Exposure(object):
         # self.Date=None
         # self.MidTime=None
         self.Run = run_
-        run.Exp.append(self)
+        run.exp.append(self)
         self.Pose  = []
         # Exposure type
-        if run.Type == "ON":
+        if run.type_ == "ON":
             self.Fclass = 902
-        elif run.Type == "OFF":
+        elif run.type_ == "OFF":
             self.Fclass = 903
-        elif run.Type == "KILL":
+        elif run.type_ == "KILL":
             self.Fclass = 904
         else:
             self.Fclass = None
@@ -567,7 +569,7 @@ def read_run_line(line):
         except AttributeError:
             target = "unknown"
         try:
-            kind = re.search(kind_re, option).group(1).strip())
+            kind = re.search(kind_re, option).group(1).strip()
         except AttributeError:
             kind = "unknown"
             
@@ -612,7 +614,7 @@ def read_run_logfile(fname):
 
         if words[6] == 'init':
             # This is a new run
-            runs.append(read_run_line(words))
+            runs.append(read_run_line(line))
             event_old = 1
             event_max = int(words[4])
         else:

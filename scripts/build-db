@@ -11,5 +11,18 @@ SNF_TARGETS_FNAME = "/project/projectdirs/snfactry/raw/targets/snifs_target.list
 iauc_targets = snfpipe.read_iauc_targets(IAUC_FNAME)
 snf_targets = snfpipe.read_snf_targets(SNF_TARGETS_FNAME)
 
+print("\nRead IAUC targets")
+print(len(iauc_targets))
+print(iauc_targets[0])
+
+print("\nRead snf targets")
 print(len(snf_targets))
 print(snf_targets[0])
+
+RUN_LOG_FNAME = "/project/projectdirs/snfactry/raw/logs/08/001/snifs_run_08_001"
+runs, exps = snfpipe.read_run_logfile(RUN_LOG_FNAME)
+
+print("\nRead", RUN_LOG_FNAME)
+print(len(runs), len(exps))
+print(runs[0])
+print(exps[0])

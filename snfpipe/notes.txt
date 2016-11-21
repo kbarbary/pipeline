@@ -1,0 +1,26 @@
+# Run on snifs_run_YY_DDD files
+
+SnfUpdate.py calls:
+
+    data = SnfData(fname_run="snifs_run_all", iauc_read=0,
+                   runidfirst=runfirst, runidlast=runlast,
+                   target_ref=old_target)
+    data.Write(output, 'full')
+    data.Summary(1, short=True)
+
+where "snifs_run_all" is all the files cat'd together, runfirst is
+YYDDD000 (D is first day) and runlast is YYDDD999 (D is last day),
+and output is a pickle(?) file.
+
+
+    SnfData() constructor (SnfRun.py) calls ReadIaucTarget() [SnfTarget.py]
+    --> fills `iauc` list
+
+    SnfData() constructor (SnfRun.py) calls ReadSnifsOnlineTarget()
+    [SnfTarget.py] --> fills `online_target` list
+
+    SnfData() constructor (SnfRun.py) calls SnfRead() with `fname_run` and the
+    previously filled targets and fills its own list attributes `Run`, `Exp`,
+    and `Pose`.
+
+        SnfRead() calls `ReadRun(fname_run, run, exp)` to fill `run` and `exp`.
