@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+
+"""Check the FITS header keywords present in each night's data."""
+
+from collections import defaultdict
+import glob
+import os
+import sqlite3
+
+import fitsio
+from tqdm import tqdm
+
+IMAGE_ROOT = "/project/projectdirs/snfactry/raw/images"
+
+patterns = OrderedDict([("??_???_???_???_??_B.fits", defaultdict(int)),
+                        ("??_???_???_???_??_R.fits", defaultdict(int)),
+                        ("??_???_???_???_??_P.fits", defaultdict(int))])
+
+nightdirs = glob.glob(os.path.join(IMAGE_ROOT, "??", "???"))
+print(len(nightdirs), "night directories")
+
+for nightdir in nightdirs:
+
+    print("reading", nightdir)
+    for pattern, counts in patterns.items():
+
+        # find the first file matching the pattern
+        fnames = glob.glob(os.path.join(nightdir, pattern))
+        if len(fnames) == 0:
+            continue
+        fname = fnames[0]
+
+        hdr = fitsio.read_header(fname, 0)
+        for key in hdr.keys():
+            counts[key] += 1
+
+# summarize
+unique_keys = set()
+for counts in patterns.values():
+    unique_keys.update(counts.keys())
+
+
+for key in unique_keys:
+    print("{:8s}    ".format(key), end='')
+    for counts in patterns.values():
+        print("{:06d}   ".format(counts[key]), end='')
+    print()

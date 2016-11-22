@@ -1,28 +1,62 @@
 #!/usr/bin/env python
 
+"""Experimental script to build a database to mirror raw metadata,
+such as image headers and log file info."""
+
 from argparse import ArgumentParser
 
 import snfpipe
 
 
-IAUC_FNAME = "/project/projectdirs/snfactry/raw/iauc/Supernovae.html"
-SNF_TARGETS_FNAME = "/project/projectdirs/snfactry/raw/targets/snifs_target.list"
+def read_log_files():
+    IAUC_FNAME = "/project/projectdirs/snfactry/raw/iauc/Supernovae.html"
+    SNF_TARGETS_FNAME = "/project/projectdirs/snfactry/raw/targets/snifs_target.list"
+    RUN_LOG_FNAME = "/project/projectdirs/snfactry/raw/logs/08/001/snifs_run_08_001"
 
-iauc_targets = snfpipe.read_iauc_targets(IAUC_FNAME)
-snf_targets = snfpipe.read_snf_targets(SNF_TARGETS_FNAME)
+    iauc_targets = snfpipe.read_iauc_targets(IAUC_FNAME)
+    print("\nRead IAUC targets")
+    print(len(iauc_targets))
+    print(iauc_targets[0])
 
-print("\nRead IAUC targets")
-print(len(iauc_targets))
-print(iauc_targets[0])
+    snf_targets = snfpipe.read_snf_targets(SNF_TARGETS_FNAME)
+    print("\nRead snf targets")
+    print(len(snf_targets))
+    print(snf_targets[0])
 
-print("\nRead snf targets")
-print(len(snf_targets))
-print(snf_targets[0])
+    runs, exps = snfpipe.read_run_logfile(RUN_LOG_FNAME)
+    print("\nRead", RUN_LOG_FNAME)
+    print(len(runs), len(exps))
+    print(runs[0])
 
-RUN_LOG_FNAME = "/project/projectdirs/snfactry/raw/logs/08/001/snifs_run_08_001"
-runs, exps = snfpipe.read_run_logfile(RUN_LOG_FNAME)
 
-print("\nRead", RUN_LOG_FNAME)
-print(len(runs), len(exps))
-print(runs[0])
-print(exps[0])
+def walk(root, patterns, recurse=False):
+    import fnmatch
+    import string
+
+    # initialize
+    result = []
+
+    names = os.listdir(root)
+
+    # expand pattern
+    pattern = pattern or '*'
+    pat_list = string.splitfields(pattern, ';')
+
+    # check each file
+    for name in names:
+        fullname = os.path.normpath(os.path.join(root, name))
+
+        # grab if it matches our pattern and entry type
+        for pat in patterns:
+            if fnmatch.fnmatch(fullname, pat):
+                if os.path.isfile(fullname):
+                    result.append([fullname, ""])
+
+                continue
+
+        # recursively scan other folders, appending results
+        if recurse:
+            if os.path.isdir(fullname) and not os.path.islink(fullname):
+                result = result + walk(fullname, patterns, recurse=recurse)
+
+    return result
