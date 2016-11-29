@@ -1,8 +1,21 @@
 #!/usr/bin/env python
 
-"""Check the FITS header keywords present in each night's data."""
+"""
+Get a nearly exhaustive list of FITS header keywords present in the
+raw image data. (For the purpose of creating columns in a database
+table; but we don't do that here, we just print out a summary.)
 
-from collections import defaultdict
+We do this for five different types of images, in order to see if the
+header contents is sufficiently different to demand separate tables
+for the different images types.
+
+Practically, we assume that within each night the header contents
+doesn't change for each type of file. So, we just check the contents
+of one file per type in each night.
+
+"""
+
+from collections import defaultdict, OrderedDict
 import glob
 import os
 import sqlite3
@@ -10,13 +23,26 @@ import sqlite3
 import fitsio
 from tqdm import tqdm
 
+
 IMAGE_ROOT = "/project/projectdirs/snfactry/raw/images"
 
-patterns = OrderedDict([("??_???_???_???_??_B.fits", defaultdict(int)),
+# found these empty files with `find $(IMAGE_ROOT) -size 0`
+ignore_list = [IMAGE_ROOT + "/15/173/acq005.fits",
+               IMAGE_ROOT + "/15/173/acq006.fits"]
+
+def filter_ignored_files(fnames):
+    return [f for f in fnames if f not in ignore_list]
+
+patterns = OrderedDict([("*vid.fits", defaultdict(int)),
+                        ("*acq*fits", defaultdict(int)),
+                        ("??_???_???_???_??_B.fits", defaultdict(int)),
                         ("??_???_???_???_??_R.fits", defaultdict(int)),
                         ("??_???_???_???_??_P.fits", defaultdict(int))])
 
-nightdirs = glob.glob(os.path.join(IMAGE_ROOT, "??", "???"))
+nightdirs = (glob.glob(os.path.join(IMAGE_ROOT, "04", "19[23456789]")) +
+             glob.glob(os.path.join(IMAGE_ROOT, "04", "[23]??")) +
+             glob.glob(os.path.join(IMAGE_ROOT, "0[56789]", "???")) +
+             glob.glob(os.path.join(IMAGE_ROOT, "1?", "???")))
 print(len(nightdirs), "night directories")
 
 for nightdir in nightdirs:
@@ -26,22 +52,28 @@ for nightdir in nightdirs:
 
         # find the first file matching the pattern
         fnames = glob.glob(os.path.join(nightdir, pattern))
+        fnames = filter_ignored_files(fnames)
         if len(fnames) == 0:
             continue
         fname = fnames[0]
 
+#        print("   ", fname)
         hdr = fitsio.read_header(fname, 0)
         for key in hdr.keys():
             counts[key] += 1
 
 # summarize
+print("\nPatterns:")
+for pattern in patterns.keys():
+    print("   ", pattern)
+print()
+
 unique_keys = set()
 for counts in patterns.values():
     unique_keys.update(counts.keys())
 
-
 for key in unique_keys:
     print("{:8s}    ".format(key), end='')
     for counts in patterns.values():
-        print("{:06d}   ".format(counts[key]), end='')
+        print("{:5d}  ".format(counts[key]), end='')
     print()

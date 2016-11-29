@@ -1,0 +1,122 @@
+#!/usr/bin/env python
+
+"""
+Sync header info from raw images to a database table.
+"""
+
+import argparse
+import glob
+import os
+import sqlite3
+
+import fitsio
+
+
+DBNAME = "/project/projectdirs/snfactry/processing/db/images.db"
+IMAGE_ROOT = "/project/projectdirs/snfactry/raw/images"
+
+
+parser = argparse.ArgumentParser(description=__doc__)
+
+# default minimum night because before that there are some invalid headers.
+parser.add_argument("--min", default="04/192",
+                    help=("Minimum night to consider. Nights are compared "
+                          "with string comparison, so it is important to "
+                          "format the argument as '??/???'. Default is "
+                          "'04/192'."))
+parser.add_argument("--max", default="99/999",
+                    help="Maxumum night to consider.")
+parser.add_argument("--clobber", default=False,
+                    help="overwrite, rather than ignore, existing file entries")
+args = parser.parse_args()
+
+# Header keywords that will go in the table and their SQLITE type affinity
+KEYS = [('RUNID', 'text'),
+        ('OBSID', 'text'),
+        ('EXPTIME', 'real'),
+        ('DARKTIME', 'real'),
+        ('AIRMASS', 'real'),
+        ('PI_NAME', 'text'),
+        ('OBSERVER', 'text'),
+        ('CHANNEL', 'text'),
+        ('FCLASS', 'integer'),
+        ('FILTER', 'text'),
+        ('FILTERID', 'integer'),
+        ('JD', 'real'),
+        ('DATE-OBS', 'text'),
+        ('INSTTEMP', 'real'),
+        ('HA', 'real'),
+        ('RADECSYS', 'text'),
+        ('EQUINOX', 'real'),
+        ('OBJRA', 'real'),
+        ('OBJDEC', 'real'),
+        ('POP', 'integer')]
+
+# add an entry in keys with non-sqlite compatible characters replaced.
+KEYS = [(k, k.replace('-', '_'), t) for k, t in KEYS]
+
+# Patterns
+PATTERNS = ["*vid.fits",
+            "*acq*fits",
+            "??_???_???_???_??_B.fits",
+            "??_???_???_???_??_R.fits",
+            "??_???_???_???_??_P.fits"]
+
+conn = sqlite3.connect(DBNAME)  # open or create DB
+cur = conn.cursor()
+
+# Check whether rawimage table exists
+cur.execute("SELECT tbl_name from sqlite_master where type='table'")
+table_names = [t[0] for t in cur.fetchall()]
+table_exists = "rawimages" in table_names
+
+# Create table if it doesn't exist
+if not table_exists:
+    print("Creating rawimages table...")
+    query = "CREATE TABLE rawimages (filepath text UNIQUE PRIMARY KEY, "
+    query += ", ".join("{} {}".format(k, t) for _, k, t in KEYS)
+    query += ")"
+    print(query)
+    cur.execute(query)
+
+# Get existing filenames in table (so we can skip them if already present)
+if args.clobber:
+    existing = []
+else:
+    cur.execute("SELECT filepath from rawimages")
+    existing = [t[0] for t in cur.fetchall()]
+
+os.chdir(IMAGE_ROOT)
+
+# find all nights after 04/192 (before that there are some invalid headers)
+nightdirs = glob.glob("??/???")
+tot_num_nights = len(nightdirs)
+nightdirs = [n for n in nightdirs if args.min < n < args.max]
+print("syncing {} of {} total night directories"
+      .format(len(nightdirs), tot_num_nights))
+
+# Insert statement template (depends on number of keys)
+insert_stmt = ("INSERT " + ("OR REPLACE " if args.clobber else "") +
+               "into rawimages values (" + len(KEYS) * "?, " + "?)")
+
+for nightdir in nightdirs:
+
+    # find all matching files in directory
+    print("reading", nightdir, '... ', end='')
+    fnames = []
+    for pattern in PATTERNS:
+        fnames += glob.glob(os.path.join(nightdir, pattern))
+    print(len(fnames), "files.")
+
+    # read each file's header and insert into DB if it doesn't already exist
+    for fname in fnames:
+        if fname in existing:
+            continue
+        hdr = fitsio.read_header(fname, 0)
+        cur.execute(insert_stmt,
+                    (fname,) + tuple(hdr.get(k[0], None) for k in KEYS))
+
+# flush changes
+conn.commit()
+conn.close()
+print("Updated", DBNAME)
