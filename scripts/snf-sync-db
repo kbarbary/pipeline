@@ -18,7 +18,8 @@ IMAGE_ROOT = "/project/projectdirs/snfactry/raw/images"
 
 parser = argparse.ArgumentParser(description=__doc__)
 
-# default minimum night because before that there are some invalid headers.
+# default minimum night because before that there are some invalid headers
+# before this date.
 parser.add_argument("--min", default="04/192",
                     help=("Minimum night to consider. Nights are compared "
                           "with string comparison, so it is important to "
@@ -26,8 +27,8 @@ parser.add_argument("--min", default="04/192",
                           "'04/192'."))
 parser.add_argument("--max", default="99/999",
                     help="Maxumum night to consider.")
-parser.add_argument("--clobber", default=False,
-                    help="overwrite, rather than ignore, existing file entries")
+parser.add_argument("--clobber", action='store_true',
+                    help="overwrite, rather than ignore, existing entries")
 args = parser.parse_args()
 
 # Header keywords that will go in the table and their SQLITE type affinity
@@ -52,10 +53,11 @@ KEYS = [('RUNID', 'text'),
         ('OBJDEC', 'real'),
         ('POP', 'integer')]
 
-# add an entry in keys with non-sqlite compatible characters replaced.
+# Add an entry in keys with non-sqlite compatible characters replaced.
+# Each entry in KEYS becomes (FITS_key, SQL_colname, SQL_affinity).
 KEYS = [(k, k.replace('-', '_'), t) for k, t in KEYS]
 
-# Patterns
+# File patterns
 PATTERNS = ["*vid.fits",
             "*acq*fits",
             "??_???_???_???_??_B.fits",
