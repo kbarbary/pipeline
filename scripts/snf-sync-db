@@ -86,14 +86,14 @@ if args.clobber:
     existing = []
 else:
     cur.execute("SELECT filepath from rawimages")
-    existing = [t[0] for t in cur.fetchall()]
+    existing = frozenset(t[0] for t in cur.fetchall())
 
 os.chdir(IMAGE_ROOT)
 
 # find all nights after 04/192 (before that there are some invalid headers)
 nightdirs = glob.glob("??/???")
 tot_num_nights = len(nightdirs)
-nightdirs = [n for n in nightdirs if args.min < n < args.max]
+nightdirs = [n for n in nightdirs if args.min <= n <= args.max]
 print("syncing {} of {} total night directories"
       .format(len(nightdirs), tot_num_nights))
 
@@ -114,7 +114,9 @@ for nightdir in nightdirs:
     for fname in fnames:
         if fname in existing:
             continue
+
         hdr = fitsio.read_header(fname, 0)
+
         cur.execute(insert_stmt,
                     (fname,) + tuple(hdr.get(k[0], None) for k in KEYS))
 
