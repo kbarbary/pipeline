@@ -45,7 +45,7 @@ for night in $nights; do
     # if we DO have it, check that its contents is a strict subset of what
     # is on /project.
     if [[ $have -eq 1 ]]; then
-	makedir -p -v $WORK_DIR  # temp. directory for text files
+	mkdir -p -v $WORK_DIR  # temp. directory for text files
 	hpss_listing=${WORK_DIR}/${year}-${night}-hpss.txt
 	project_listing=${WORK_DIR}/${year}-${night}-project.txt
 
