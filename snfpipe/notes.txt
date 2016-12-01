@@ -10,7 +10,9 @@ SnfUpdate.py calls:
 
 where "snifs_run_all" is all the files cat'd together, runfirst is
 YYDDD000 (D is first day) and runlast is YYDDD999 (D is last day),
-and output is a pickle(?) file.
+and output is a shelve file. The output contains 'Pose', 'Exp', 'Run' and
+'Target' attributes, which are lists of `SnfPose`, `SnfExp`, `SnfRun`, and
+`SnfTarget` instances.
 
 
     SnfData() constructor (SnfRun.py) calls ReadIaucTarget() [SnfTarget.py]
