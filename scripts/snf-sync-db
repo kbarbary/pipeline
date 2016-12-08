@@ -14,7 +14,9 @@ import fitsio
 
 DBNAME = "/project/projectdirs/snfactry/processing/db/images.db"
 IMAGE_ROOT = "/project/projectdirs/snfactry/raw/images"
-
+IGNORE_LIST = ["15/173/acq005.fits", # empty
+               "15/173/acq006.fits", # empty
+               "06/311/06_311_014_002_52_R.fits"] # truncated
 
 parser = argparse.ArgumentParser(description=__doc__)
 
@@ -90,10 +92,11 @@ else:
 
 os.chdir(IMAGE_ROOT)
 
-# find all nights after 04/192 (before that there are some invalid headers)
+# get a list of all night directories in range.
 nightdirs = glob.glob("??/???")
 tot_num_nights = len(nightdirs)
 nightdirs = [n for n in nightdirs if args.min <= n <= args.max]
+nightdirs.sort()
 print("syncing {} of {} total night directories"
       .format(len(nightdirs), tot_num_nights))
 
@@ -108,19 +111,26 @@ for nightdir in nightdirs:
     fnames = []
     for pattern in PATTERNS:
         fnames += glob.glob(os.path.join(nightdir, pattern))
-    print(len(fnames), "files.")
+    print(len(fnames), "files")
 
     # read each file's header and insert into DB if it doesn't already exist
     for fname in fnames:
         if fname in existing:
             continue
 
-        hdr = fitsio.read_header(fname, 0)
+        try:
+            hdr = fitsio.read_header(fname, 0)
+        except:
+            if fname in IGNORE_LIST:
+                continue
+            print("exception occured while reading " + fname)
+            raise
 
         cur.execute(insert_stmt,
                     (fname,) + tuple(hdr.get(k[0], None) for k in KEYS))
 
-# flush changes
-conn.commit()
+    # flush changes
+    conn.commit()
+
 conn.close()
-print("Updated", DBNAME)
+print("db file:", DBNAME)
